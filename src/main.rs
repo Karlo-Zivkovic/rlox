@@ -1,6 +1,10 @@
 use std::{env, fs, process};
-use vm::VM;
+use vm::{InterpretResult, VM};
 
+pub mod chunk;
+pub mod compiler;
+pub mod scanner;
+pub mod token;
 pub mod vm;
 
 fn main() {
@@ -11,20 +15,29 @@ fn main() {
         process::exit(64);
     }
 
-    if let Err(e) = run_file(&args[1]) {
-        eprintln!("Error: {}", e);
-        process::exit(65);
-    }
+    run_file(&args[1]);
 }
 
-fn run_file(filename: &str) -> Result<(), String> {
+fn run_file(path: &str) {
     let vm = VM::new();
 
-    let source = fs::read_to_string(filename)
-        .map_err(|err| format!("Failed to read file '{}': {}", filename, err))?;
+    let source = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(err) => {
+            eprintln!("Failed to read file '{}': {}", path, err);
+            process::exit(65); // Exit with error code for file errors
+        }
+    };
 
     match vm.interpret(&source) {
-        Ok(()) => Ok(()),
-        Err(err) => Err(format!("Runtime error: {}", err)),
+        InterpretResult::Ok => {}
+        InterpretResult::CompileError => {
+            eprintln!("Compilation failed.");
+            process::exit(65); // Exit code for compile errors
+        }
+        InterpretResult::RuntimeError => {
+            eprintln!("Runtime error occurred.");
+            process::exit(70); // Exit code for runtime errors
+        }
     }
 }
