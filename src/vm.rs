@@ -1,4 +1,4 @@
-use crate::{chunk::Chunk, compiler::compile};
+use crate::{chunk::Chunk, compiler::Compiler};
 
 pub struct VM {}
 
@@ -16,8 +16,8 @@ impl VM {
     pub fn interpret(&self, source: &str) -> InterpretResult {
         let chunk = Chunk::new();
 
-        if !compile(source, &chunk) {
-            InterpretResult::CompileError
+        if !Compiler::compile(source, &chunk) {
+            return InterpretResult::CompileError;
         }
 
         let result = self.run();
