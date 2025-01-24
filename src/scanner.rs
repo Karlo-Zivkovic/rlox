@@ -1,16 +1,18 @@
 use crate::token::{Token, TokenType};
 
 pub struct Scanner<'a> {
-    start: &'a str,
-    current: &'a str,
+    source: &'a str,
+    start: usize,
+    current: usize,
     line: usize,
 }
 
 impl<'a> Scanner<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
-            start: source,
-            current: source,
+            source,
+            start: 0,
+            current: 0,
             line: 1,
         }
     }
@@ -19,70 +21,66 @@ impl<'a> Scanner<'a> {
         self.skip_whitespace();
         self.start = self.current;
 
-        if let Some(c) = self.advance() {
-            match c {
-                '(' => return self.make_token(TokenType::LeftParen),
-                ')' => return self.make_token(TokenType::RightParen),
-                '{' => return self.make_token(TokenType::LeftBrace),
-                '}' => return self.make_token(TokenType::RightBrace),
-                ';' => return self.make_token(TokenType::Semicolon),
-                ',' => return self.make_token(TokenType::Comma),
-                '.' => return self.make_token(TokenType::Dot),
-                '-' => return self.make_token(TokenType::Minus),
-                '+' => return self.make_token(TokenType::Plus),
-                '/' => return self.make_token(TokenType::Slash),
-                '*' => return self.make_token(TokenType::Star),
-                '!' => {
-                    if self.match_char('=') {
-                        return self.make_token(TokenType::BangEqual);
-                    } else {
-                        return self.make_token(TokenType::Bang);
-                    }
+        match self.advance() {
+            '(' => return self.make_token(TokenType::LeftParen),
+            ')' => return self.make_token(TokenType::RightParen),
+            '{' => return self.make_token(TokenType::LeftBrace),
+            '}' => return self.make_token(TokenType::RightBrace),
+            ';' => return self.make_token(TokenType::Semicolon),
+            ',' => return self.make_token(TokenType::Comma),
+            '.' => return self.make_token(TokenType::Dot),
+            '-' => return self.make_token(TokenType::Minus),
+            '+' => return self.make_token(TokenType::Plus),
+            '/' => return self.make_token(TokenType::Slash),
+            '*' => return self.make_token(TokenType::Star),
+            '!' => {
+                if self.match_char('=') {
+                    return self.make_token(TokenType::BangEqual);
+                } else {
+                    return self.make_token(TokenType::Bang);
                 }
-                '=' => {
-                    if self.match_char('=') {
-                        return self.make_token(TokenType::EqualEqual);
-                    } else {
-                        return self.make_token(TokenType::Equal);
-                    }
-                }
-                '<' => {
-                    if self.match_char('=') {
-                        return self.make_token(TokenType::LessEqual);
-                    } else {
-                        return self.make_token(TokenType::Less);
-                    }
-                }
-                '>' => {
-                    if self.match_char('=') {
-                        return self.make_token(TokenType::GreaterEqual);
-                    } else {
-                        return self.make_token(TokenType::Greater);
-                    }
-                }
-                '"' => return self.string(),
-                _ if self.is_at_end() => return self.make_token(TokenType::Eof),
-                c if self.is_alpha(c) => return self.identifier(),
-                c if self.is_digit(c) => return self.number(),
-                _ => return self.error_token("Unexpected character."),
             }
-        } else {
-            return self.make_token(TokenType::Eof);
+            '=' => {
+                if self.match_char('=') {
+                    return self.make_token(TokenType::EqualEqual);
+                } else {
+                    return self.make_token(TokenType::Equal);
+                }
+            }
+            '<' => {
+                if self.match_char('=') {
+                    return self.make_token(TokenType::LessEqual);
+                } else {
+                    return self.make_token(TokenType::Less);
+                }
+            }
+            '>' => {
+                if self.match_char('=') {
+                    return self.make_token(TokenType::GreaterEqual);
+                } else {
+                    return self.make_token(TokenType::Greater);
+                }
+            }
+            '"' => return self.string(),
+            _ if self.is_at_end() => return self.make_token(TokenType::Eof),
+            c if c.is_alphabetic() => return self.identifier(),
+            c if c.is_digit(10) => return self.number(),
+            _ => return self.error_token("Unexpected character."),
         }
     }
 
     fn number(&mut self) -> Token {
         while let Some(c) = self.peek() {
-            if self.is_digit(c) {
+            if c.is_digit(10) {
                 self.advance();
             } else {
                 break;
             }
         }
-        if self.peek() == Some('.') && self.is_digit(self.peek_next().unwrap_or('X')) {
+        if self.peek() == Some('.') && self.peek_next().unwrap().is_digit(10) {
             self.advance();
             while let Some(c) = self.peek() {
-                if self.is_digit(c) {
+                if c.is_digit(10) {
                     self.advance();
                 } else {
                     break;
@@ -93,16 +91,16 @@ impl<'a> Scanner<'a> {
     }
 
     fn peek_next(&self) -> Option<char> {
-        self.current.chars().next()
+        self.source[self.current + 2..].chars().next()
     }
 
     fn peek(&self) -> Option<char> {
-        self.current.chars().next()
+        self.source[self.current + 1..].chars().next()
     }
 
     fn identifier(&mut self) -> Token {
         while let Some(c) = self.peek() {
-            if self.is_alpha(c) || self.is_digit(c) {
+            if c.is_alphabetic() || c.is_digit(10) {
                 self.advance();
             } else {
                 break;
@@ -112,38 +110,38 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier_type(&self) -> TokenType {
-        match self.current.chars().next() {
-            Some('a') => self.check_keyword(1, 2, "nd", TokenType::And),
-            Some('c') => self.check_keyword(1, 4, "lass", TokenType::Class),
-            Some('e') => self.check_keyword(1, 3, "lse", TokenType::Else),
-            Some('f') => {
-                if self.current.get(1..2) == Some("a") {
+        match self.current_char() {
+            'a' => self.check_keyword(1, 2, "nd", TokenType::And),
+            'c' => self.check_keyword(1, 4, "lass", TokenType::Class),
+            'e' => self.check_keyword(1, 3, "lse", TokenType::Else),
+            'f' => {
+                if self.source.get(self.current + 1..self.current + 2) == Some("a") {
                     self.check_keyword(2, 3, "lse", TokenType::False)
-                } else if self.current.get(1..2) == Some("o") {
+                } else if self.source.get(self.current + 1..self.current + 2) == Some("o") {
                     self.check_keyword(2, 1, "r", TokenType::For)
-                } else if self.current.get(1..2) == Some("u") {
+                } else if self.source.get(self.current + 1..self.current + 2) == Some("u") {
                     self.check_keyword(2, 1, "n", TokenType::Fun)
                 } else {
                     TokenType::Identifier
                 }
             }
-            Some('i') => self.check_keyword(1, 1, "f", TokenType::If),
-            Some('n') => self.check_keyword(1, 2, "il", TokenType::Nil),
-            Some('o') => self.check_keyword(1, 1, "r", TokenType::Or),
-            Some('p') => self.check_keyword(1, 4, "rint", TokenType::Print),
-            Some('r') => self.check_keyword(1, 5, "eturn", TokenType::Return),
-            Some('s') => self.check_keyword(1, 4, "uper", TokenType::Super),
-            Some('t') => {
-                if self.current.get(1..2) == Some("h") {
+            'i' => self.check_keyword(1, 1, "f", TokenType::If),
+            'n' => self.check_keyword(1, 2, "il", TokenType::Nil),
+            'o' => self.check_keyword(1, 1, "r", TokenType::Or),
+            'p' => self.check_keyword(1, 4, "rint", TokenType::Print),
+            'r' => self.check_keyword(1, 5, "eturn", TokenType::Return),
+            's' => self.check_keyword(1, 4, "uper", TokenType::Super),
+            't' => {
+                if self.source.get(self.current + 1..self.current + 2) == Some("h") {
                     self.check_keyword(2, 2, "is", TokenType::This)
-                } else if self.current.get(1..2) == Some("r") {
+                } else if self.source.get(self.current + 1..self.current + 2) == Some("r") {
                     self.check_keyword(2, 2, "ue", TokenType::True)
                 } else {
                     TokenType::Identifier
                 }
             }
-            Some('v') => self.check_keyword(1, 2, "ar", TokenType::Var),
-            Some('w') => self.check_keyword(1, 4, "hile", TokenType::While),
+            'v' => self.check_keyword(1, 2, "ar", TokenType::Var),
+            'w' => self.check_keyword(1, 4, "hile", TokenType::While),
             _ => TokenType::Identifier,
         }
     }
@@ -155,28 +153,23 @@ impl<'a> Scanner<'a> {
         suffix: &str,
         token_type: TokenType,
     ) -> TokenType {
-        if self.current.get(start..start + len) == Some(suffix) {
+        if self
+            .source
+            .get(self.current + start..self.current + start + len)
+            == Some(suffix)
+        {
             token_type
         } else {
             TokenType::Identifier
         }
     }
 
-    fn is_digit(&self, c: char) -> bool {
-        c.is_digit(10)
-    }
-    fn is_alpha(&self, c: char) -> bool {
-        c.is_alphabetic()
-    }
-
     fn string(&self) -> Token {
         loop {
-            if let Some(c) = self.current.chars().next() {
-                match c {
-                    '"' => return self.make_token(TokenType::String),
-                    '\0' => return self.error_token("Unterminated string."),
-                    _ => continue,
-                }
+            match self.current_char() {
+                '"' => return self.make_token(TokenType::String),
+                '\0' => return self.error_token("Unterminated string."),
+                _ => continue,
             }
         }
     }
@@ -190,48 +183,56 @@ impl<'a> Scanner<'a> {
     }
 
     fn is_at_end(&self) -> bool {
-        self.current == '\0'.to_string()
+        self.current_char() == '\0'
+    }
+
+    fn current_char(&self) -> char {
+        self.source[self.current..].chars().next().unwrap()
     }
 
     fn match_char(&mut self, expected: char) -> bool {
         if self.is_at_end() {
             return false;
         }
-        if self.current != expected.to_string() {
+        if self.current_char() != expected {
             return false;
         }
         self.advance();
         return true;
     }
 
+    fn lexeme(&self) -> &'a str {
+        &self.source[self.start..self.current]
+    }
+
     fn make_token(&self, token_type: TokenType) -> Token<'a> {
         Token {
             token_type,
             line: self.line,
-            lexeme: &self.start[..self.current.len()],
+            lexeme: &self.lexeme(),
         }
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(c) = self.current.chars().next() {
+        loop {
+            let c = self.source[self.current..].chars().next().unwrap();
             match c {
                 ' ' | '\r' | '\t' => {
-                    self.current = &self.current[1..];
+                    self.current += 1;
                 }
                 '\n' => {
-                    self.current = &self.current[1..];
+                    self.current += 1;
                     self.line += 1;
                 }
                 _ => break,
+                // TODO: add logic for comments
             }
         }
     }
 
-    fn advance(&mut self) -> Option<char> {
-        let char = self.current.chars().next();
-        if let Some(_) = char {
-            self.current = &self.current[1..];
-        }
+    fn advance(&mut self) -> char {
+        let char = self.current_char();
+        self.current += char.len_utf8();
         char
     }
 }
