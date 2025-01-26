@@ -1,4 +1,4 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug, Clone, Eq, Hash)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,
@@ -47,8 +47,9 @@ pub enum TokenType {
     Eof,
 }
 
-pub struct Token<'a> {
+#[derive(Debug, Clone)]
+pub struct Token<'s> {
     pub token_type: TokenType,
     pub line: usize,
-    pub lexeme: &'a str,
+    pub lexeme: &'s str,
 }

@@ -1,25 +1,33 @@
 use crate::token::{Token, TokenType};
+use std::cell::RefCell;
 
 pub struct Scanner<'a> {
     source: &'a str,
-    start: usize,
-    current: usize,
-    line: usize,
+    start: RefCell<usize>,
+    current: RefCell<usize>,
+    line: RefCell<usize>,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl<'s> Scanner<'s> {
+    pub fn new(source: &'s str) -> Self {
         Self {
             source,
-            start: 0,
-            current: 0,
-            line: 1,
+            start: RefCell::new(0),
+            current: RefCell::new(0),
+            line: RefCell::new(1),
         }
     }
 
-    pub fn scan_token(&'a mut self) -> Token<'a> {
+    fn current_index(&self) -> usize {
+        *self.current.borrow()
+    }
+    fn start_index(&self) -> usize {
+        *self.start.borrow()
+    }
+
+    pub fn scan_token(&self) -> Token<'s> {
         self.skip_whitespace();
-        self.start = self.current;
+        *self.start.borrow_mut() = self.current_index();
 
         match self.advance() {
             '(' => return self.make_token(TokenType::LeftParen),
@@ -69,7 +77,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn number(&mut self) -> Token {
+    fn number(&self) -> Token<'s> {
         while let Some(c) = self.peek() {
             if c.is_digit(10) {
                 self.advance();
@@ -91,14 +99,14 @@ impl<'a> Scanner<'a> {
     }
 
     fn peek_next(&self) -> Option<char> {
-        self.source[self.current + 2..].chars().next()
+        self.source[self.current_index() + 1..].chars().next()
     }
 
     fn peek(&self) -> Option<char> {
-        self.source[self.current + 1..].chars().next()
+        self.source[self.current_index()..].chars().next()
     }
 
-    fn identifier(&mut self) -> Token {
+    fn identifier(&self) -> Token<'s> {
         while let Some(c) = self.peek() {
             if c.is_alphabetic() || c.is_digit(10) {
                 self.advance();
@@ -110,16 +118,28 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier_type(&self) -> TokenType {
-        match self.current_char() {
+        match self.source[self.start_index()..].chars().next().unwrap() {
             'a' => self.check_keyword(1, 2, "nd", TokenType::And),
             'c' => self.check_keyword(1, 4, "lass", TokenType::Class),
             'e' => self.check_keyword(1, 3, "lse", TokenType::Else),
             'f' => {
-                if self.source.get(self.current + 1..self.current + 2) == Some("a") {
+                if self
+                    .source
+                    .get(self.current_index() + 1..self.current_index() + 2)
+                    == Some("a")
+                {
                     self.check_keyword(2, 3, "lse", TokenType::False)
-                } else if self.source.get(self.current + 1..self.current + 2) == Some("o") {
+                } else if self
+                    .source
+                    .get(self.current_index() + 1..self.current_index() + 2)
+                    == Some("o")
+                {
                     self.check_keyword(2, 1, "r", TokenType::For)
-                } else if self.source.get(self.current + 1..self.current + 2) == Some("u") {
+                } else if self
+                    .source
+                    .get(self.current_index() + 1..self.current_index() + 2)
+                    == Some("u")
+                {
                     self.check_keyword(2, 1, "n", TokenType::Fun)
                 } else {
                     TokenType::Identifier
@@ -132,9 +152,17 @@ impl<'a> Scanner<'a> {
             'r' => self.check_keyword(1, 5, "eturn", TokenType::Return),
             's' => self.check_keyword(1, 4, "uper", TokenType::Super),
             't' => {
-                if self.source.get(self.current + 1..self.current + 2) == Some("h") {
+                if self
+                    .source
+                    .get(self.current_index() + 1..self.current_index() + 2)
+                    == Some("h")
+                {
                     self.check_keyword(2, 2, "is", TokenType::This)
-                } else if self.source.get(self.current + 1..self.current + 2) == Some("r") {
+                } else if self
+                    .source
+                    .get(self.current_index() + 1..self.current_index() + 2)
+                    == Some("r")
+                {
                     self.check_keyword(2, 2, "ue", TokenType::True)
                 } else {
                     TokenType::Identifier
@@ -155,7 +183,7 @@ impl<'a> Scanner<'a> {
     ) -> TokenType {
         if self
             .source
-            .get(self.current + start..self.current + start + len)
+            .get(self.start_index() + start..self.current_index())
             == Some(suffix)
         {
             token_type
@@ -164,7 +192,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn string(&self) -> Token {
+    fn string(&self) -> Token<'s> {
         loop {
             match self.current_char() {
                 '"' => return self.make_token(TokenType::String),
@@ -174,10 +202,10 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn error_token(&self, message: &'a str) -> Token<'a> {
+    fn error_token(&self, message: &'s str) -> Token<'s> {
         Token {
             token_type: TokenType::Error,
-            line: self.line,
+            line: *self.line.borrow(),
             lexeme: message,
         }
     }
@@ -187,10 +215,10 @@ impl<'a> Scanner<'a> {
     }
 
     fn current_char(&self) -> char {
-        self.source[self.current..].chars().next().unwrap()
+        self.peek().unwrap()
     }
 
-    fn match_char(&mut self, expected: char) -> bool {
+    fn match_char(&self, expected: char) -> bool {
         if self.is_at_end() {
             return false;
         }
@@ -201,28 +229,27 @@ impl<'a> Scanner<'a> {
         return true;
     }
 
-    fn lexeme(&self) -> &'a str {
-        &self.source[self.start..self.current]
+    fn lexeme(&self) -> &'s str {
+        &self.source[self.start_index()..*self.current.borrow()]
     }
 
-    fn make_token(&self, token_type: TokenType) -> Token<'a> {
+    fn make_token(&self, token_type: TokenType) -> Token<'s> {
         Token {
             token_type,
-            line: self.line,
+            line: *self.line.borrow(),
             lexeme: &self.lexeme(),
         }
     }
 
-    fn skip_whitespace(&mut self) {
+    fn skip_whitespace(&self) {
         loop {
-            let c = self.source[self.current..].chars().next().unwrap();
-            match c {
+            match self.peek().unwrap() {
                 ' ' | '\r' | '\t' => {
-                    self.current += 1;
+                    *self.current.borrow_mut() += 1;
                 }
                 '\n' => {
-                    self.current += 1;
-                    self.line += 1;
+                    *self.current.borrow_mut() += 1;
+                    *self.line.borrow_mut() += 1;
                 }
                 _ => break,
                 // TODO: add logic for comments
@@ -230,9 +257,9 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn advance(&mut self) -> char {
+    fn advance(&self) -> char {
         let char = self.current_char();
-        self.current += char.len_utf8();
+        *self.current.borrow_mut() += char.len_utf8();
         char
     }
 }

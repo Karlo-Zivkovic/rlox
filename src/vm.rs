@@ -14,14 +14,15 @@ impl VM {
     }
 
     pub fn interpret(&self, source: &str) -> InterpretResult {
-        let chunk = Chunk::new();
+        let mut chunk = Chunk::new();
+        let compiler = Compiler::new(source);
 
-        if !Compiler::compile(source, &chunk) {
+        if !compiler.compile(&mut chunk) {
             return InterpretResult::CompileError;
         }
+        dbg!(&chunk);
 
-        let result = self.run();
-        result
+        self.run()
     }
 
     fn run(&self) -> InterpretResult {
