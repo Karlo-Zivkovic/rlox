@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub struct Chunk {
-    code: Vec<OpCode>,
+    pub code: Vec<OpCode>,
     lines: Vec<LineEntry>,
     pub constants: Vec<Value>,
 }
@@ -12,7 +12,7 @@ struct LineEntry {
 }
 
 // maybe define methods/trait on the enum
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Number(f64),
     String(String),

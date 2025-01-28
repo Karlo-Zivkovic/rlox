@@ -70,7 +70,8 @@ impl<'s> Scanner<'s> {
                 }
             }
             '"' => return self.string(),
-            _ if self.is_at_end() => return self.make_token(TokenType::Eof),
+            '\0' => return self.make_token(TokenType::Eof),
+            //_ if self.is_at_end() => return self.make_token(TokenType::Eof),
             c if c.is_alphabetic() => return self.identifier(),
             c if c.is_digit(10) => return self.number(),
             _ => return self.error_token("Unexpected character."),
@@ -243,23 +244,32 @@ impl<'s> Scanner<'s> {
 
     fn skip_whitespace(&self) {
         loop {
-            match self.peek().unwrap() {
-                ' ' | '\r' | '\t' => {
-                    *self.current.borrow_mut() += 1;
-                }
-                '\n' => {
-                    *self.current.borrow_mut() += 1;
-                    *self.line.borrow_mut() += 1;
-                }
-                _ => break,
-                // TODO: add logic for comments
+            match self.peek() {
+                Some(c) => match c {
+                    ' ' | '\r' | '\t' => {
+                        *self.current.borrow_mut() += 1;
+                    }
+                    '\n' => {
+                        *self.current.borrow_mut() += 1;
+                        *self.line.borrow_mut() += 1;
+                    }
+                    _ => break,
+                    // TODO: add logic for comments
+                },
+                None => break,
             }
         }
     }
 
     fn advance(&self) -> char {
-        let char = self.current_char();
-        *self.current.borrow_mut() += char.len_utf8();
-        char
+        if let Some(char) = self.peek() {
+            *self.current.borrow_mut() += char.len_utf8();
+            char
+        } else {
+            '\0'
+        }
+        // // let char = self.current_char();
+        //  *self.current.borrow_mut() += char.len_utf8();
+        // char
     }
 }

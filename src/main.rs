@@ -19,7 +19,7 @@ fn main() {
 }
 
 fn run_file(path: &str) {
-    let vm = VM::new();
+    let mut vm = VM::new();
 
     let source = match fs::read_to_string(path) {
         Ok(content) => content,
