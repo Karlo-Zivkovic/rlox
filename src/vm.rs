@@ -46,6 +46,7 @@ impl VM {
                 .code
                 .len()
         {
+            //dbg!(&self.chunk);
             let chunk = self.chunk.as_ref().expect("Chunk should be initialized");
             let opcode = &chunk.code[self.ip];
             self.ip += 1;
@@ -73,9 +74,6 @@ impl VM {
                 _ => println!("other"),
             }
         }
-
-        dbg!(&self.chunk);
-        println!("Running VM...");
         InterpretResult::Ok
     }
 

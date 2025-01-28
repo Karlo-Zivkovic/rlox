@@ -82,9 +82,27 @@ impl<'a> Parser<'a> {
         self.advance();
 
         while !self.match_token_type(TokenType::Eof) {
+            if self.match_token_type(TokenType::Var) {
+                self.var_declaration();
+            }
             self.statement();
         }
     }
+
+    fn var_declaration(&self) {
+        let global_index = self.parse_variable("Expect variable name.");
+    }
+
+    fn parse_variable(&self, message: &str) -> u8 {
+        self.consume(TokenType::Identifier, message);
+
+        let token = self.previous.borrow().unwrap();
+        self.add_local(&token);
+
+        return identifier_constant();
+    }
+
+    fn add_local(&self, token: &Token) {}
 
     fn advance(&self) {
         *self.previous.borrow_mut() = self.current_token();
