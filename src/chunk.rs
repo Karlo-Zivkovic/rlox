@@ -42,6 +42,7 @@ impl Chunk {
     }
 
     pub fn add_constant(&mut self, value: Value) -> u8 {
+        //println!("Adding constant: {:?}", value);
         self.constants.push(value);
         (self.constants.len() - 1) as u8
     }
@@ -61,11 +62,11 @@ pub enum OpCode {
     True,
     False,
     Pop,
-    GetLocal,
-    SetLocal,
-    GetGlobal,
-    DefineGlobal,
-    SetGlobal,
+    GetLocal(u8),
+    SetLocal(u8),
+    GetGlobal(u8),
+    SetGlobal(u8),
+    DefineGlobal(u8),
     Equal,
     Greater,
     Less,

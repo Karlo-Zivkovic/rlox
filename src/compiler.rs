@@ -3,9 +3,9 @@ use crate::{
     scanner::Scanner,
     token::{Token, TokenType},
 };
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::LazyLock;
+use std::{cell::RefCell, process};
 
 type ParseFn = fn(&Parser);
 
@@ -15,6 +15,10 @@ pub struct ParseRule {
     infix: Option<ParseFn>,
     precedence: Precedence,
 }
+
+// struct Local<'a> {
+//     token: Token<'a>,
+// }
 
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub enum Precedence {
@@ -55,6 +59,7 @@ struct Parser<'a> {
     previous: RefCell<Option<Token<'a>>>,
     had_error: RefCell<bool>,
     panic_mode: RefCell<bool>,
+    locals: RefCell<Vec<Token<'a>>>,
 }
 
 impl<'a> Parser<'a> {
@@ -66,6 +71,7 @@ impl<'a> Parser<'a> {
             previous: RefCell::new(None),
             had_error: RefCell::new(false),
             panic_mode: RefCell::new(false),
+            locals: RefCell::new(Vec::new()),
         }
     }
 
@@ -89,20 +95,30 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn var_declaration(&self) {
-        let global_index = self.parse_variable("Expect variable name.");
+    fn var_declaration(&'a self) {
+        self.consume(TokenType::Identifier, "Expect variable name.");
+
+        let token = self.previous_token().expect("Expected previous token");
+
+        // TODO: implement with scope depth in mind
+        // self.locals.borrow_mut().push(token.clone());
+
+        let variable_index = self
+            .chunk
+            .borrow_mut()
+            .add_constant(Value::String(token.lexeme.to_string()));
+
+        if self.match_token_type(TokenType::Equal) {
+            self.expression();
+        } else {
+            self.emit_byte(OpCode::Nil);
+        }
+        self.consume(
+            TokenType::Semicolon,
+            "Expect ';' after variable declaration.",
+        );
+        self.emit_byte(OpCode::DefineGlobal(variable_index));
     }
-
-    fn parse_variable(&self, message: &str) -> u8 {
-        self.consume(TokenType::Identifier, message);
-
-        let token = self.previous.borrow().unwrap();
-        self.add_local(&token);
-
-        return identifier_constant();
-    }
-
-    fn add_local(&self, token: &Token) {}
 
     fn advance(&self) {
         *self.previous.borrow_mut() = self.current_token();
@@ -158,7 +174,7 @@ impl<'a> Parser<'a> {
         self.chunk.borrow_mut().write(opcode);
     }
 
-    fn expression(&'a self) {
+    fn expression(&self) {
         self.parse_precedence(Precedence::Assignment);
     }
 
@@ -188,6 +204,7 @@ impl<'a> Parser<'a> {
 
     fn parse_precedence(&self, precedence: Precedence) {
         self.advance();
+
         let previous_token_type = self.previous_token().unwrap().token_type;
 
         // Handle the prefix rule
@@ -274,7 +291,46 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn variable(parser: &Parser) {}
+    fn resolve_local(&self, token: &Token) -> Option<u8> {
+        self.locals
+            .borrow()
+            .iter()
+            .rposition(|local| local.lexeme == token.lexeme)
+            .map(|pos| pos as u8)
+    }
+
+    fn variable(parser: &Parser) {
+        let token = parser.previous_token().expect("Expect previous token");
+        // First determine if it's a local or global variable and get the index
+        let (get_op, set_op) = {
+            if let Some(local_index) = parser.resolve_local(&token) {
+                (OpCode::GetLocal(local_index), OpCode::SetLocal(local_index))
+            } else {
+                let global_index = parser
+                    .chunk
+                    .borrow_mut()
+                    .add_constant(Value::String(token.lexeme.to_string()));
+                (
+                    OpCode::GetGlobal(global_index),
+                    OpCode::SetGlobal(global_index),
+                )
+            }
+        };
+
+        // Check if it's an assignment by peeking at the current token
+        if let Some(current) = parser.current_token() {
+            if current.token_type == TokenType::Equal {
+                parser.advance(); // Consume the equals sign
+                parser.expression(); // Now uses &self directly
+                parser.emit_byte(set_op);
+                return;
+            }
+        }
+
+        // If not an assignment, emit the get operation
+        parser.emit_byte(get_op);
+    }
+
     fn string(parser: &Parser) {}
 
     fn number(parser: &Parser) {
@@ -308,6 +364,8 @@ impl<'a> Compiler<'a> {
     pub fn compile(&self, chunk: &mut Chunk) -> bool {
         let parser = Parser::new(chunk, &self.source);
         parser.run();
+        // println! {"{:#?}", chunk};
+        // process::exit(0);
 
         self.end_compiler(&parser);
         return !*parser.had_error.borrow();

@@ -2,11 +2,13 @@ use crate::{
     chunk::{Chunk, OpCode, Value},
     compiler::Compiler,
 };
+use std::collections::{hash_map, HashMap};
 
 pub struct VM {
     ip: usize,
     chunk: Option<Chunk>,
     stack: Vec<Value>,
+    globals_table: HashMap<String, Value>,
 }
 
 pub enum InterpretResult {
@@ -21,6 +23,7 @@ impl VM {
             ip: 0,
             chunk: None,
             stack: Vec::new(),
+            globals_table: HashMap::new(),
         }
     }
 
@@ -37,6 +40,10 @@ impl VM {
         self.run()
     }
 
+    fn peek(&self, distance: usize) -> &Value {
+        &self.stack[self.stack.len() - 1 - distance]
+    }
+
     fn run(&mut self) -> InterpretResult {
         while self.ip
             < self
@@ -46,7 +53,7 @@ impl VM {
                 .code
                 .len()
         {
-            //dbg!(&self.chunk);
+            dbg!(&self.chunk);
             let chunk = self.chunk.as_ref().expect("Chunk should be initialized");
             let opcode = &chunk.code[self.ip];
             self.ip += 1;
@@ -68,8 +75,41 @@ impl VM {
                 }
                 OpCode::Print => {
                     let value = self.stack.pop().unwrap();
-                    println!("{:#?}", value);
+                    match value {
+                        Value::String(str) => println!("{:#?}", str),
+                        Value::Number(numb) => println!("{}", numb),
+                        Value::Boolean(bool) => println!("{}", bool),
+                        _ => println!("Nil"),
+                    }
                 }
+
+                OpCode::DefineGlobal(index) => {
+                    if let Value::String(key) = &chunk.constants[*index as usize] {
+                        let value = self.peek(0).clone();
+                        self.globals_table.insert(key.clone(), value);
+                        self.stack.pop();
+                    } else {
+                        // Handle error case - the constant wasn't a string
+                        return InterpretResult::RuntimeError;
+                    }
+                }
+
+                OpCode::GetGlobal(index) => {
+                    if let Value::String(key) = &chunk.constants[*index as usize] {
+                        match self.globals_table.get(key) {
+                            Some(value) => {
+                                self.stack.push(value.clone());
+                            }
+                            None => {
+                                eprintln!("Undefined variable '{}'", key);
+                                return InterpretResult::RuntimeError;
+                            }
+                        }
+                    } else {
+                        return InterpretResult::RuntimeError;
+                    }
+                }
+
                 OpCode::Return => return InterpretResult::Ok,
                 _ => println!("other"),
             }
