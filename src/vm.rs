@@ -73,6 +73,17 @@ impl VM {
                         _ => return InterpretResult::RuntimeError,
                     }
                 }
+                OpCode::Divide => {
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Number(a), Value::Number(b)) => {
+                            self.stack.push(Value::Number(a / b));
+                        }
+                        _ => return InterpretResult::RuntimeError
+                    }
+
+                }
                 OpCode::Print => {
                     let value = self.stack.pop().unwrap();
                     match value {
