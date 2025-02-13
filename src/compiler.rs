@@ -60,6 +60,8 @@ struct Parser<'a> {
     had_error: RefCell<bool>,
     panic_mode: RefCell<bool>,
     locals: RefCell<Vec<Token<'a>>>,
+    scope_depth: RefCell<u8>,
+    local_count: RefCell<u8>
 }
 
 impl<'a> Parser<'a> {
@@ -72,6 +74,8 @@ impl<'a> Parser<'a> {
             had_error: RefCell::new(false),
             panic_mode: RefCell::new(false),
             locals: RefCell::new(Vec::new()),
+            scope_depth: RefCell::new(0),
+            local_count: RefCell::new(0),
         }
     }
 
@@ -146,7 +150,23 @@ impl<'a> Parser<'a> {
     fn statement(&'a self) {
         if self.match_token_type(TokenType::Print) {
             self.print_statement();
+        } else if self.match_token_type(TokenType::LeftBrace) {
+            self.block();
         }
+    }
+
+    fn block(&'a self){
+        // begin scope
+        *self.scope_depth.borrow_mut() += 1;
+
+
+        // TODO: Continue here with scopes
+        // end scope
+        // *self.scope_depth.borrow_mut() -= 1;
+        // while *self.local_count.borrow() > 0 && self.locals[self.
+
+        self.consume(TokenType::RightBrace, "Expect '}' at the end of scope");
+
     }
 
     fn print_statement(&'a self) {
